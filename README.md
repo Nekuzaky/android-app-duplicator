@@ -55,7 +55,7 @@ DualSpace does not stop a duplicated app from collecting data. Data in the secon
 | `QUERY_ALL_PACKAGES` | List your installed apps, on the device only |
 | `REQUEST_INSTALL_PACKAGES` | Install copies in the second space |
 | `REQUEST_DELETE_PACKAGES` | Remove a copy |
-| `dev.nekuz.dualspace.permission.CLONE` | Signature permission that stops other apps from requesting a duplication |
+| `dev.nekuz.dualspace.permission.CLONE` | Signature permission that stops apps signed with a different key from requesting a duplication |
 
 ## Requirements
 
@@ -83,16 +83,25 @@ Create a `local.properties` file that points to your Android SDK:
 sdk.dir=/path/to/Android/Sdk
 ```
 
-Build the debug APK with JDK 21:
+Create a signing key, then add a `keystore.properties` file at the project root. It is ignored by Git, so never commit it or your key:
+
+```properties
+storeFile=/path/to/your-key.jks
+storePassword=your-password
+keyAlias=release
+keyPassword=your-password
+```
+
+Build the release APK with JDK 21:
 
 ```bash
-JAVA_HOME=/path/to/jdk-21 ./gradlew assembleDebug
+JAVA_HOME=/path/to/jdk-21 ./gradlew assembleRelease
 ```
 
 Install it on a phone with USB debugging enabled:
 
 ```bash
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
 ## Usage
@@ -125,7 +134,7 @@ The installation approach is inspired by [Shelter](https://github.com/PeterCxy/S
 - **Installer source changes.** After a duplication by APK copy, Android reports DualSpace as the installer of that package, including for the original app. The effect on Play Store updates has not been verified.
 - **Shared updates.** Copies use the same installed package as the original, so an update applies to both.
 - **Not suited to the Play Store.** `QUERY_ALL_PACKAGES` and `REQUEST_INSTALL_PACKAGES` are restricted, so the app is meant to be installed directly.
-- **Debug builds only for now.** Installing a build signed with a different key requires uninstalling the app and removing the space.
+- **Changing the signing key is disruptive.** Installing a build signed with a different key requires deleting the space and uninstalling the app.
 
 ## Test status
 
@@ -139,10 +148,14 @@ Tested on one device: Oppo Reno4 Z 5G (CPH2065) with Android 12 and ColorOS.
 | Pause and resume a copy | Works |
 | Remove a copy, original app kept | Works |
 | Cancel at the Android install prompt | Works |
+| Duplicate and open Instagram | Works, sign-in not attempted |
+| Create a new space from a clean install | Works |
+| Delete Space 2 | Works |
+| Reject a forged install result on Android 12 | Works |
+| Reject a direct launch of the duplication screen | Works |
 | Sign in to a second account in a copy | Not tested |
-| Instagram, Snapchat and other popular apps | Not tested |
-| Create a new space from a clean install of this version | Not tested |
-| Delete Space 2 | Not tested |
+| Snapchat and other popular apps | Not tested |
+| Reject a third-party app that imitates the duplication request | Not tested, fixed in code |
 | Other phones and Android versions | Not tested |
 
 Reports from other devices are welcome. Please open an issue with your phone model, Android version and the app you tried.

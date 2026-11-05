@@ -142,7 +142,7 @@ class AddActivity : Activity() {
             .putExtra(Space.EXTRA_IS_SYSTEM, app.isSystem)
 
         val forwarder = packageManager.queryIntentActivities(intent, 0)
-            .firstOrNull { it.activityInfo.packageName != packageName }
+            .firstOrNull { it.activityInfo.packageName == SYSTEM_PACKAGE }
         if (forwarder == null) {
             prepareSpace()
             return
@@ -163,6 +163,10 @@ class AddActivity : Activity() {
                 ComponentName(packageName, MainActivity::class.java.name), profile, null, null
             )
         }
+    }
+
+    private companion object {
+        const val SYSTEM_PACKAGE = "android"
     }
 
     private inner class AppAdapter : BaseAdapter() {

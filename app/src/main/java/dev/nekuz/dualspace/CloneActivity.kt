@@ -29,6 +29,10 @@ class CloneActivity : Activity() {
     private var targetPackage = ""
     private var targetLabel = ""
     private var installStarted = false
+    private var receiverRegistered = false
+
+    @Volatile
+    private var sessionId = -1
 
     private val resultReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) = onInstallStatus(intent)
@@ -51,13 +55,11 @@ class CloneActivity : Activity() {
             return
         }
 
-        Space.allowInstalls(this)
-
         val filter = IntentFilter(ACTION_INSTALL_STATUS)
         if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(resultReceiver, filter, RECEIVER_NOT_EXPORTED)
+            registerReceiver(resultReceiver, filter, Space.PERMISSION_CLONE, null, RECEIVER_NOT_EXPORTED)
         } else {
-            registerReceiver(resultReceiver, filter)
+            registerReceiver(resultReceiver, filter, Space.PERMISSION_CLONE, null)
         }
         receiverRegistered = true
 
@@ -67,10 +69,18 @@ class CloneActivity : Activity() {
             )
         }
 
-        if (intent.getBooleanExtra(Space.EXTRA_IS_SYSTEM, false)) enableSystemApp()
+        if (intent.getBooleanExtra(Space.EXTRA_IS_SYSTEM, false)) {
+            enableSystemApp()
+        } else {
+            Space.allowInstalls(this)
+        }
     }
 
-    private var receiverRegistered = false
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        @Suppress("DEPRECATION")
+        if (!installStarted) super.onBackPressed()
+    }
 
     override fun onResume() {
         super.onResume()
@@ -88,6 +98,7 @@ class CloneActivity : Activity() {
 
     override fun onDestroy() {
         if (receiverRegistered) unregisterReceiver(resultReceiver)
+        if (Space.isInsideSpace(this)) Space.restrictInstalls(this)
         super.onDestroy()
     }
 
@@ -116,10 +127,10 @@ class CloneActivity : Activity() {
             val installer = packageManager.packageInstaller
             val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
             params.setAppPackageName(targetPackage)
-            var sessionId = -1
             try {
                 check(paths.isNotEmpty())
-                val files = paths.map { File(it) }
+                val files = paths.map { File(it).canonicalFile }
+                check(files.all(::isInstalledApk))
                 val totalBytes = files.sumOf { it.length() }.coerceAtLeast(1)
                 var copiedBytes = 0L
                 sessionId = installer.createSession(params)
@@ -161,7 +172,11 @@ class CloneActivity : Activity() {
         }
     }
 
+    private fun isInstalledApk(file: File): Boolean =
+        file.name.endsWith(".apk") && APK_ROOTS.any { file.path.startsWith(it) }
+
     private fun onInstallStatus(intent: Intent) {
+        if (sessionId == -1 || intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1) != sessionId) return
         when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                 @Suppress("DEPRECATION")
@@ -185,5 +200,6 @@ class CloneActivity : Activity() {
 
     private companion object {
         const val ACTION_INSTALL_STATUS = "dev.nekuz.dualspace.action.INSTALL_STATUS"
+        val APK_ROOTS = listOf("/data/app/", "/mnt/expand/")
     }
 }

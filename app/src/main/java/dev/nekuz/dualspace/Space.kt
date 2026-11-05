@@ -14,6 +14,7 @@ import android.provider.MediaStore
 object Space {
 
     const val ACTION_CLONE = "dev.nekuz.dualspace.action.CLONE"
+    const val PERMISSION_CLONE = "dev.nekuz.dualspace.permission.CLONE"
     const val EXTRA_PACKAGE = "dev.nekuz.dualspace.extra.PACKAGE"
     const val EXTRA_LABEL = "dev.nekuz.dualspace.extra.LABEL"
     const val EXTRA_BASE_APK = "dev.nekuz.dualspace.extra.BASE_APK"
@@ -36,13 +37,17 @@ object Space {
         dpm(context).clearUserRestriction(admin(context), UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
     }
 
+    fun restrictInstalls(context: Context) {
+        dpm(context).addUserRestriction(admin(context), UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
+    }
+
     fun setUp(context: Context) {
         if (!isInsideSpace(context)) return
         val dpm = dpm(context)
         val admin = admin(context)
         dpm.setProfileName(admin, context.getString(R.string.space_name))
         dpm.setProfileEnabled(admin)
-        allowInstalls(context)
+        restrictInstalls(context)
 
         dpm.clearCrossProfileIntentFilters(admin)
         dpm.addCrossProfileIntentFilter(
