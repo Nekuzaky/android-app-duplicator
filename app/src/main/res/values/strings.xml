@@ -1,4 +1,60 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">DualSpace</string>
+    <string name="space_name">Space 2</string>
+
+    <string name="hero_setup_title">2 accounts.\n0 ads.</string>
+    <string name="home_subtitle_setup">Use two accounts on the same app.</string>
+    <string name="hero_pill">DualSpace stays offline, your apps don\'t</string>
+    <string name="back">Back</string>
+    <plurals name="space_app_count">
+        <item quantity="one">app in your Space 2</item>
+        <item quantity="other">apps in your Space 2</item>
+    </plurals>
+    <string name="setup_step_1">Create Space 2, an isolated profile managed by Android.</string>
+    <string name="setup_step_2">Choose the apps you want to duplicate.</string>
+    <string name="setup_step_3">Sign in to your other account in each copy.</string>
+    <string name="setup_create">Create Space 2</string>
+    <string name="add_app">+  Add an app</string>
+    <string name="manage_space">Manage Space 2</string>
+    <string name="privacy">Privacy</string>
+    <string name="empty_clones">No apps in Space 2 yet.</string>
+    <string name="paused_message">Space 2 is paused. Turn it back on with the Work apps quick setting, then come back here.</string>
+    <string name="foreign_profile">Another work profile already exists on this phone, and Android only allows one. Remove it in the phone settings to use DualSpace.</string>
+    <string name="provisioning_refused">This phone refuses to create a work profile.</string>
+    <string name="provisioning_unsupported">Work profiles are not supported on this phone.</string>
+    <string name="provisioning_cancelled">Setup cancelled.</string>
+    <string name="open_failed">Could not open this app.</string>
+
+    <string name="add_app_title">Add an app</string>
+    <string name="search_hint">Search apps</string>
+    <string name="empty_cloned_list">No apps in Space 2 yet.</string>
+    <string name="empty_add_list">No apps to duplicate.</string>
+    <string name="empty_search">No results.</string>
+    <string name="paused_tag">Paused</string>
+    <string name="clone_title">Duplicate %1$s?</string>
+    <string name="clone_message">A copy with its own data will be added to Space 2. Android will ask you to confirm, and you will need to sign in to the copy.</string>
+    <string name="clone_action">Duplicate</string>
+    <string name="clone_progress_title">Duplicating %1$s</string>
+    <string name="clone_copying">Copying the app files…</string>
+    <string name="clone_installing">Installing in Space 2…</string>
+    <string name="clone_needs_permission">To install copies, allow DualSpace once on the Android screen, then come back here.</string>
+    <string name="clone_allow">Allow</string>
+    <string name="clone_cancelled">Duplication cancelled.</string>
+    <string name="space_preparing">Preparing Space 2. Come back and try again.</string>
+    <string name="clone_success">%1$s was duplicated.</string>
+    <string name="clone_failed">Could not duplicate %1$s.</string>
+    <string name="action_open">Open</string>
+    <string name="action_pause">Pause</string>
+    <string name="action_resume">Resume</string>
+    <string name="action_remove">Remove this copy</string>
+    <string name="action_failed">The action failed.</string>
+    <string name="wipe_space">Delete Space 2</string>
+    <string name="wipe_title">Delete Space 2?</string>
+    <string name="wipe_message">All copies and their data will be permanently deleted. Your original apps are not affected.</string>
+    <string name="wipe_action">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="close">Close</string>
+
+    <string name="privacy_message">DualSpace has no Internet permission and contains no ads or analytics, so the app itself cannot send anything online.\n\nIt reads your list of apps only on this phone, to offer them for duplication.\n\nEach copy keeps its own Internet access. Instagram, Snapchat and other apps keep sending data to their own services, just like the originals.\n\nSpace 2 data is kept separate from your main profile. Some apps, especially banking apps, may refuse to run in a work profile.</string>
 </resources>

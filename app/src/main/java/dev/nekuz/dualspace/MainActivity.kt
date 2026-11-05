@@ -1,174 +1,193 @@
 package dev.nekuz.dualspace
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.app.admin.DevicePolicyManager
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
+import android.content.pm.LauncherActivityInfo
+import android.content.pm.LauncherApps
 import android.os.Build
 import android.os.Bundle
+import android.os.UserHandle
 import android.os.UserManager
-import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ArrayAdapter
+import android.widget.BaseAdapter
 import android.widget.Button
+import android.widget.GridView
+import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
+import kotlin.concurrent.thread
 
-/**
- * Le même APK tourne dans deux contextes :
- *  - profil principal : propose de créer l'espace 2 (profil de travail) ;
- *  - profil de travail (nous en sommes "profile owner") : propose de cloner des apps dedans.
- */
 class MainActivity : Activity() {
 
-    private val dpm by lazy { getSystemService(DevicePolicyManager::class.java) }
-    private val admin by lazy { ComponentName(this, AdminReceiver::class.java) }
+    private class Clone(val info: LauncherActivityInfo, val label: String, val icon: android.graphics.drawable.Drawable)
+
+    private lateinit var heroTitle: TextView
+    private lateinit var gridCard: View
+    private lateinit var subtitle: TextView
+    private lateinit var setupCard: LinearLayout
+    private lateinit var notice: TextView
+    private lateinit var grid: GridView
+    private lateinit var emptyClones: TextView
+    private lateinit var spacer: View
+    private lateinit var addButton: Button
+    private lateinit var manageButton: Button
+
+    private var clones: List<Clone> = emptyList()
+    private var loadGeneration = 0
+    private var animated = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (Space.isInsideSpace(this)) {
+            startActivity(Intent(this, ManageActivity::class.java))
+            finish()
+            return
+        }
+        setContentView(R.layout.activity_home)
+        findViewById<View>(R.id.heroCard).clipToOutline = true
+        heroTitle = findViewById(R.id.heroTitle)
+        gridCard = findViewById(R.id.gridCard)
+        subtitle = findViewById(R.id.subtitle)
+        setupCard = findViewById(R.id.setupCard)
+        notice = findViewById(R.id.notice)
+        grid = findViewById(R.id.grid)
+        emptyClones = findViewById(R.id.emptyClones)
+        spacer = findViewById(R.id.spacer)
+        addButton = findViewById(R.id.addButton)
+
+        grid.adapter = CloneAdapter()
+        grid.setOnItemClickListener { _, _, position, _ -> openClone(clones[position]) }
+        findViewById<Button>(R.id.createButton).setOnClickListener { startProvisioning() }
+        findViewById<View>(R.id.privacyButton).setOnClickListener { showPrivacyDialog() }
+        manageButton = findViewById(R.id.manageButton)
+        addButton.setOnClickListener { startActivity(Intent(this, AddActivity::class.java)) }
+        manageButton.setOnClickListener { openManageScreen() }
+    }
 
     override fun onResume() {
         super.onResume()
-        if (dpm.isProfileOwnerApp(packageName)) showProfileScreen() else showMainScreen()
+        if (!isFinishing) render()
     }
 
-    // ---------- Écran du profil principal ----------
-
-    private fun showMainScreen() {
-        val root = column()
-        root.addView(title("DualSpace"))
-        val hasProfile = getSystemService(UserManager::class.java).userProfiles.size > 1
-
-        if (hasProfile) {
-            root.addView(text(
-                "L'espace 2 existe déjà.\n\n" +
-                "Ouvre l'icône DualSpace avec la petite mallette (dans ton tiroir d'apps) " +
-                "pour choisir les applications à dupliquer."
-            ))
-        } else {
-            root.addView(text(
-                "Crée un second espace isolé sur ton téléphone. Les applications que tu y " +
-                "dupliques ont leur propre compte et leurs propres données.\n\n" +
-                "Tout reste sur ton téléphone : cette app n'a aucun accès Internet."
-            ))
-            root.addView(button("Créer l'espace 2") { startProvisioning() })
+    private fun render() {
+        val profile = Space.workProfile(this)
+        val launcher = getSystemService(LauncherApps::class.java)
+        when {
+            profile == null -> showState(State.SETUP)
+            getSystemService(UserManager::class.java).isQuietModeEnabled(profile) -> showState(State.PAUSED)
+            launcher.getActivityList(packageName, profile).isEmpty() -> showState(State.FOREIGN)
+            else -> {
+                showState(State.READY)
+                loadClones(profile, launcher)
+            }
         }
-        setContentView(root)
+    }
+
+    private enum class State { SETUP, PAUSED, FOREIGN, READY }
+
+    private fun showState(state: State) {
+        if (state == State.SETUP) {
+            heroTitle.setText(R.string.hero_setup_title)
+            subtitle.setText(R.string.home_subtitle_setup)
+        } else if (state != State.READY) {
+            heroTitle.setText(R.string.space_name)
+            subtitle.text = null
+        }
+        setupCard.visibility = if (state == State.SETUP) View.VISIBLE else View.GONE
+        notice.visibility = if (state == State.PAUSED || state == State.FOREIGN) View.VISIBLE else View.GONE
+        if (state == State.PAUSED) notice.setText(R.string.paused_message)
+        if (state == State.FOREIGN) notice.setText(R.string.foreign_profile)
+        addButton.visibility = if (state == State.READY) View.VISIBLE else View.GONE
+        manageButton.visibility = addButton.visibility
+        gridCard.visibility = if (state == State.READY) View.VISIBLE else View.GONE
+        spacer.visibility = if (state == State.READY) View.GONE else View.VISIBLE
+        emptyClones.visibility = View.GONE
+    }
+
+    private fun loadClones(profile: UserHandle, launcher: LauncherApps) {
+        val generation = ++loadGeneration
+        thread {
+            val loaded = launcher.getActivityList(null, profile)
+                .filter { it.applicationInfo.packageName != packageName }
+                .map { Clone(it, it.label.toString(), it.getBadgedIcon(0)) }
+                .sortedBy { it.label.lowercase() }
+            runOnUiThread {
+                if (isDestroyed || generation != loadGeneration) return@runOnUiThread
+                clones = loaded
+                heroTitle.text = loaded.size.toString()
+                subtitle.text = resources.getQuantityText(R.plurals.space_app_count, loaded.size)
+                (grid.adapter as BaseAdapter).notifyDataSetChanged()
+                if (!animated) {
+                    animated = true
+                    grid.scheduleLayoutAnimation()
+                }
+                grid.visibility = if (loaded.isEmpty()) View.GONE else View.VISIBLE
+                emptyClones.visibility = if (loaded.isEmpty()) View.VISIBLE else View.GONE
+            }
+        }
+    }
+
+    private fun openClone(clone: Clone) {
+        try {
+            getSystemService(LauncherApps::class.java)
+                .startMainActivity(clone.info.componentName, clone.info.user, null, null)
+        } catch (e: RuntimeException) {
+            Toast.makeText(this, R.string.open_failed, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun openManageScreen() {
+        val profile = Space.workProfile(this) ?: return
+        try {
+            getSystemService(LauncherApps::class.java).startMainActivity(
+                ComponentName(packageName, MainActivity::class.java.name), profile, null, null
+            )
+        } catch (e: RuntimeException) {
+            Toast.makeText(this, R.string.open_failed, Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun startProvisioning() {
-        val intent = Intent(DevicePolicyManager.ACTION_PROVISION_MANAGED_PROFILE).apply {
-            putExtra(DevicePolicyManager.EXTRA_PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME, admin)
-        }
-        if (Build.VERSION.SDK_INT >= 31 &&
-            !dpm.isProvisioningAllowed(DevicePolicyManager.ACTION_PROVISION_MANAGED_PROFILE)
-        ) {
-            Toast.makeText(this, "Ce téléphone refuse la création d'un profil de travail.", Toast.LENGTH_LONG).show()
+        val action = DevicePolicyManager.ACTION_PROVISION_MANAGED_PROFILE
+        if (Build.VERSION.SDK_INT >= 31 && !Space.dpm(this).isProvisioningAllowed(action)) {
+            Toast.makeText(this, R.string.provisioning_refused, Toast.LENGTH_LONG).show()
             return
         }
+        val intent = Intent(action).putExtra(
+            DevicePolicyManager.EXTRA_PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME, Space.admin(this)
+        )
         try {
             @Suppress("DEPRECATION")
             startActivityForResult(intent, REQ_PROVISION)
         } catch (e: ActivityNotFoundException) {
-            Toast.makeText(this, "Profil de travail non supporté sur ce téléphone.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, R.string.provisioning_unsupported, Toast.LENGTH_LONG).show()
         }
     }
 
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQ_PROVISION && resultCode != RESULT_OK) {
-            Toast.makeText(this, "Création annulée.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.provisioning_cancelled, Toast.LENGTH_SHORT).show()
         }
     }
 
-    // ---------- Écran du profil de travail ----------
-
-    private fun showProfileScreen() {
-        val pm = packageManager
-        @Suppress("DEPRECATION")
-        val candidates = pm.getInstalledApplications(PackageManager.MATCH_UNINSTALLED_PACKAGES)
-            .filter {
-                it.flags and ApplicationInfo.FLAG_SYSTEM == 0 &&
-                    it.flags and ApplicationInfo.FLAG_INSTALLED == 0 &&
-                    it.packageName != packageName
-            }
-            .map { Pair(pm.getApplicationLabel(it).toString(), it.packageName) }
-            .sortedBy { it.first.lowercase() }
-
-        val root = column()
-        root.addView(title("Espace 2"))
-        root.addView(text("Touche une application pour la dupliquer ici."))
-
-        val list = ListView(this)
-        list.adapter = ArrayAdapter(
-            this, android.R.layout.simple_list_item_2, android.R.id.text1,
-            candidates.map { "${it.first}\n${it.second}" }
-        )
-        list.setOnItemClickListener { _, _, pos, _ -> confirmClone(candidates[pos]) }
-        root.addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-
-        root.addView(button("Supprimer l'espace 2 et ses données") { confirmWipe() })
-        setContentView(root)
-    }
-
-    private fun confirmClone(app: Pair<String, String>) {
-        AlertDialog.Builder(this)
-            .setTitle("Dupliquer ${app.first} ?")
-            .setMessage("Une seconde copie sera installée dans l'espace 2, avec ses propres données.")
-            .setPositiveButton("Dupliquer") { _, _ ->
-                val ok = try {
-                    dpm.installExistingPackage(admin, app.second)
-                } catch (e: Exception) {
-                    false
-                }
-                Toast.makeText(
-                    this,
-                    if (ok) "${app.first} dupliquée dans l'espace 2." else "Échec de la duplication.",
-                    Toast.LENGTH_LONG
-                ).show()
-                if (ok) showProfileScreen()
-            }
-            .setNegativeButton("Annuler", null)
-            .show()
-    }
-
-    private fun confirmWipe() {
-        AlertDialog.Builder(this)
-            .setTitle("Supprimer l'espace 2 ?")
-            .setMessage("Toutes les apps dupliquées et leurs données seront définitivement supprimées.")
-            .setPositiveButton("Supprimer") { _, _ -> dpm.wipeData(0) }
-            .setNegativeButton("Annuler", null)
-            .show()
-    }
-
-    // ---------- Petits utilitaires d'interface ----------
-
-    private fun column() = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(48, 48, 48, 48)
-    }
-
-    private fun title(s: String) = TextView(this).apply {
-        text = s
-        textSize = 28f
-        setPadding(0, 0, 0, 24)
-    }
-
-    private fun text(s: String) = TextView(this).apply {
-        text = s
-        textSize = 16f
-        setPadding(0, 0, 0, 32)
-    }
-
-    private fun button(s: String, onClick: () -> Unit) = Button(this).apply {
-        text = s
-        gravity = Gravity.CENTER
-        setOnClickListener { onClick() }
+    private inner class CloneAdapter : BaseAdapter() {
+        override fun getCount() = clones.size
+        override fun getItem(position: Int) = clones[position]
+        override fun getItemId(position: Int) = position.toLong()
+        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+            val view = convertView ?: layoutInflater.inflate(R.layout.grid_app, parent, false)
+            view.findViewById<ImageView>(R.id.icon).setImageDrawable(clones[position].icon)
+            view.findViewById<TextView>(R.id.label).text = clones[position].label
+            return view
+        }
     }
 
     private companion object {
