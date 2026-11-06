@@ -44,6 +44,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (Space.isInsideSpace(this)) {
+            Space.restoreInstallRestriction(this)
             startActivity(Intent(this, ManageActivity::class.java))
             finish()
             return
@@ -114,7 +115,17 @@ class MainActivity : Activity() {
         thread {
             val loaded = launcher.getActivityList(null, profile)
                 .filter { it.applicationInfo.packageName != packageName }
-                .map { Clone(it, it.label.toString(), it.getBadgedIcon(0)) }
+                .mapNotNull { info ->
+                    try {
+                        Clone(
+                            info,
+                            safeLabel(info.applicationInfo.packageName) { info.label },
+                            AppIcons.load(this) { info.getBadgedIcon(0) },
+                        )
+                    } catch (t: Throwable) {
+                        null
+                    }
+                }
                 .sortedBy { it.label.lowercase() }
             runOnUiThread {
                 if (isDestroyed || generation != loadGeneration) return@runOnUiThread

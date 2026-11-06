@@ -17,8 +17,8 @@ android {
         applicationId = "dev.nekuz.dualspace"
         minSdk = 28
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.0.1"
+        versionCode = 4
+        versionName = "1.0.2"
     }
 
     signingConfigs {
@@ -48,4 +48,5 @@ android {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
 }

@@ -48,6 +48,8 @@ Most apps that do this are full of ads. This one has none, and it has no Interne
 
 DualSpace does not stop a duplicated app from collecting data. Data in the second space is separate from your main profile, but apps can still see that they run on the same device and may link your accounts.
 
+The clipboard and keyboards may span both profiles, so text you copy or type in a copy may be visible outside the second space. DualSpace leaves copy and paste between profiles enabled.
+
 ### Permissions
 
 | Permission | Why it is needed |
@@ -55,6 +57,7 @@ DualSpace does not stop a duplicated app from collecting data. Data in the secon
 | `QUERY_ALL_PACKAGES` | List your installed apps, on the device only |
 | `REQUEST_INSTALL_PACKAGES` | Install copies in the second space |
 | `REQUEST_DELETE_PACKAGES` | Remove a copy |
+| `RECEIVE_BOOT_COMPLETED` | Block installs from unknown sources again in the second space after a restart, if a duplication was interrupted |
 | `dev.nekuz.dualspace.permission.CLONE` | Signature permission that stops apps signed with a different key from requesting a duplication |
 
 ## Requirements
@@ -137,17 +140,22 @@ The installation approach is inspired by [Shelter](https://github.com/PeterCxy/S
 
 - **One extra copy per app.** Android allows one work profile, so you get the original and one copy.
 - **Some apps may refuse to run.** Banking apps in particular may reject work profiles.
-- **Installer source changes.** After a duplication by APK copy, Android reports DualSpace as the installer of that package, including for the original app. The effect on Play Store updates has not been verified.
+- **Installer source changes.** After a duplication by APK copy, Android reports DualSpace as the installer of that package, including for the original app. The effect on Play Store updates has not been verified. The duplication prompt warns about this.
+- **The duplication request can be intercepted inside the second space.** Android clears the target of a request that crosses profiles, so an app in the second space that declares the same action can appear in a chooser next to DualSpace. If you pick it, it receives the package name, label and APK paths of the app you chose, and it could show a fake duplication screen. The paths must stay in the request because the second space cannot look up an app that is not installed in it. If Android asks which app should handle a duplication, choose DualSpace.
 - **Shared updates.** Copies use the same installed package as the original, so an update applies to both.
 - **Not suited to the Play Store.** `QUERY_ALL_PACKAGES` and `REQUEST_INSTALL_PACKAGES` are restricted, so the app is meant to be installed directly.
 - **Changing the signing key is disruptive.** Installing a build signed with a different key requires deleting the space and uninstalling the app.
 
 ## Test status
 
-Tested on one device: Oppo Reno4 Z 5G (CPH2065) with Android 12 and ColorOS.
+Tested on one device: Oppo Reno4 Z 5G (CPH2065) with Android 12 and ColorOS. The rows marked "1.0.2" were run on the current version. The other rows were run on version 1.0.1.
 
 | Scenario | Status |
 | --- | --- |
+| Install over 1.0.1, existing copies kept | Works, 1.0.2 |
+| New warning about the recorded installer in the prompt | Works, 1.0.2 |
+| Duplicate a recently built app without a Play Store history | Android's install prompt appeared, then Google Play Protect blocked the app, 1.0.2 |
+| Complete a duplication from start to finish | Works, 1.0.2, confirmed by hand with an app already on the phone |
 | Duplicate an app with split APKs (Duolingo) | Works |
 | Enable a preinstalled app (Gmail) | Works |
 | Open a copy from the home screen | Works |

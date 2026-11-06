@@ -2,6 +2,7 @@ package dev.nekuz.dualspace
 
 import android.app.Activity
 import android.app.PendingIntent
+import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -30,6 +31,7 @@ class CloneActivity : Activity() {
     private var targetLabel = ""
     private var installStarted = false
     private var receiverRegistered = false
+    private var holdsInstallGate = false
 
     @Volatile
     private var sessionId = -1
@@ -38,6 +40,7 @@ class CloneActivity : Activity() {
         override fun onReceive(context: Context, intent: Intent) = onInstallStatus(intent)
     }
 
+    @Suppress("UnspecifiedRegisterReceiverFlag")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setFinishOnTouchOutside(false)
@@ -63,16 +66,10 @@ class CloneActivity : Activity() {
         }
         receiverRegistered = true
 
-        allowButton.setOnClickListener {
-            startActivity(
-                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
-            )
-        }
+        allowButton.setOnClickListener { openInstallSettings() }
 
         if (intent.getBooleanExtra(Space.EXTRA_IS_SYSTEM, false)) {
             enableSystemApp()
-        } else {
-            Space.allowInstalls(this)
         }
     }
 
@@ -85,11 +82,13 @@ class CloneActivity : Activity() {
     override fun onResume() {
         super.onResume()
         if (installStarted || isFinishing || intent.getBooleanExtra(Space.EXTRA_IS_SYSTEM, false)) return
+        openInstallGate()
         if (packageManager.canRequestPackageInstalls()) {
             allowButton.visibility = View.GONE
             installStarted = true
             startCopy()
         } else {
+            closeInstallGate()
             progress.visibility = View.GONE
             message.setText(R.string.clone_needs_permission)
             allowButton.visibility = View.VISIBLE
@@ -98,8 +97,32 @@ class CloneActivity : Activity() {
 
     override fun onDestroy() {
         if (receiverRegistered) unregisterReceiver(resultReceiver)
-        if (Space.isInsideSpace(this)) Space.restrictInstalls(this)
+        closeInstallGate()
         super.onDestroy()
+    }
+
+    private fun openInstallSettings() {
+        openInstallGate()
+        try {
+            startActivity(
+                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
+            )
+        } catch (e: ActivityNotFoundException) {
+            closeInstallGate()
+            finishWith(getString(R.string.clone_failed, targetLabel))
+        }
+    }
+
+    private fun openInstallGate() {
+        if (holdsInstallGate) return
+        holdsInstallGate = true
+        Space.openInstallGate(this)
+    }
+
+    private fun closeInstallGate() {
+        if (!holdsInstallGate) return
+        holdsInstallGate = false
+        Space.closeInstallGate(this)
     }
 
     private fun enableSystemApp() {
@@ -130,7 +153,7 @@ class CloneActivity : Activity() {
             try {
                 check(paths.isNotEmpty())
                 val files = paths.map { File(it).canonicalFile }
-                check(files.all(::isInstalledApk))
+                check(files.all { isInstalledApkPath(it.path) })
                 val totalBytes = files.sumOf { it.length() }.coerceAtLeast(1)
                 var copiedBytes = 0L
                 sessionId = installer.createSession(params)
@@ -172,9 +195,6 @@ class CloneActivity : Activity() {
         }
     }
 
-    private fun isInstalledApk(file: File): Boolean =
-        file.name.endsWith(".apk") && APK_ROOTS.any { file.path.startsWith(it) }
-
     private fun onInstallStatus(intent: Intent) {
         if (sessionId == -1 || intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1) != sessionId) return
         when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
@@ -200,6 +220,5 @@ class CloneActivity : Activity() {
 
     private companion object {
         const val ACTION_INSTALL_STATUS = "dev.nekuz.dualspace.action.INSTALL_STATUS"
-        val APK_ROOTS = listOf("/data/app/", "/mnt/expand/")
     }
 }

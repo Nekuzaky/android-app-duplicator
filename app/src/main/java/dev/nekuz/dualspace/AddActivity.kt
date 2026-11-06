@@ -98,16 +98,20 @@ class AddActivity : Activity() {
                     it.applicationInfo.packageName !in alreadyCloned
             }
             .distinctBy { it.applicationInfo.packageName }
-            .map {
-                val info = it.applicationInfo
-                App(
-                    label = info.loadLabel(packageManager).toString(),
-                    packageName = info.packageName,
-                    icon = info.loadIcon(packageManager),
-                    baseApk = info.sourceDir,
-                    splitApks = info.splitSourceDirs?.map { dir -> dir }?.toTypedArray() ?: emptyArray(),
-                    isSystem = info.flags and ApplicationInfo.FLAG_SYSTEM != 0,
-                )
+            .mapNotNull {
+                try {
+                    val info = it.applicationInfo
+                    App(
+                        label = safeLabel(info.packageName) { info.loadLabel(packageManager) },
+                        packageName = info.packageName,
+                        icon = AppIcons.load(this) { info.loadIcon(packageManager) },
+                        baseApk = info.sourceDir,
+                        splitApks = info.splitSourceDirs?.map { dir -> dir }?.toTypedArray() ?: emptyArray(),
+                        isSystem = info.flags and ApplicationInfo.FLAG_SYSTEM != 0,
+                    )
+                } catch (t: Throwable) {
+                    null
+                }
             }
             .sortedBy { it.label.lowercase() }
     }
@@ -127,7 +131,7 @@ class AddActivity : Activity() {
     private fun confirmClone(app: App) {
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.clone_title, app.label))
-            .setMessage(R.string.clone_message)
+            .setMessage(if (app.isSystem) R.string.clone_message_system else R.string.clone_message)
             .setPositiveButton(R.string.clone_action) { _, _ -> clone(app) }
             .setNegativeButton(R.string.cancel, null)
             .show()

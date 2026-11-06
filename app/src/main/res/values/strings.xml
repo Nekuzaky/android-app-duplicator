@@ -33,7 +33,8 @@
     <string name="empty_search">No results.</string>
     <string name="paused_tag">Paused</string>
     <string name="clone_title">Duplicate %1$s?</string>
-    <string name="clone_message">A copy with its own data will be added to Space 2. Android will ask you to confirm, and you will need to sign in to the copy.</string>
+    <string name="clone_message">A copy with its own data will be added to Space 2. Android will ask you to confirm, and you will need to sign in to the copy.\n\nThis also changes the recorded installer of the original app, which may affect its updates.</string>
+    <string name="clone_message_system">A copy with its own data will be added to Space 2, and you will need to sign in to it.</string>
     <string name="clone_action">Duplicate</string>
     <string name="clone_progress_title">Duplicating %1$s</string>
     <string name="clone_copying">Copying the app files…</string>
@@ -51,10 +52,10 @@
     <string name="action_failed">The action failed.</string>
     <string name="wipe_space">Delete Space 2</string>
     <string name="wipe_title">Delete Space 2?</string>
-    <string name="wipe_message">All copies and their data will be permanently deleted. Your original apps are not affected.</string>
+    <string name="wipe_message">All copies and their data will be permanently deleted. Your original apps and their data stay on this phone.</string>
     <string name="wipe_action">Delete</string>
     <string name="cancel">Cancel</string>
     <string name="close">Close</string>
 
-    <string name="privacy_message">DualSpace has no Internet permission and contains no ads or analytics, so the app itself cannot send anything online.\n\nIt reads your list of apps only on this phone, to offer them for duplication.\n\nEach copy keeps its own Internet access. Instagram, Snapchat and other apps keep sending data to their own services, just like the originals.\n\nSpace 2 data is kept separate from your main profile. Some apps, especially banking apps, may refuse to run in a work profile.</string>
+    <string name="privacy_message">DualSpace has no Internet permission and contains no ads or analytics, so the app itself cannot send anything online.\n\nIt reads your list of apps only on this phone, to offer them for duplication.\n\nEach copy keeps its own Internet access. Instagram, Snapchat and other apps keep sending data to their own services, just like the originals.\n\nSpace 2 data is kept separate from your main profile, but the clipboard and keyboards may span both profiles, so text you copy or type in a copy may be visible outside Space 2. Some apps, especially banking apps, may refuse to run in a work profile.</string>
 </resources>

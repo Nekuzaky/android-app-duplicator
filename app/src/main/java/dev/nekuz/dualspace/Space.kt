@@ -33,11 +33,22 @@ object Space {
         context.getSystemService(UserManager::class.java).userProfiles
             .firstOrNull { it != Process.myUserHandle() }
 
-    fun allowInstalls(context: Context) {
+    private val installGate = InstallGate()
+
+    fun openInstallGate(context: Context) {
+        installGate.open()
         dpm(context).clearUserRestriction(admin(context), UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
     }
 
-    fun restrictInstalls(context: Context) {
+    fun closeInstallGate(context: Context) {
+        if (installGate.close()) restrictInstalls(context)
+    }
+
+    fun restoreInstallRestriction(context: Context) {
+        if (isInsideSpace(context) && installGate.isIdle) restrictInstalls(context)
+    }
+
+    private fun restrictInstalls(context: Context) {
         dpm(context).addUserRestriction(admin(context), UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
     }
 
@@ -47,7 +58,7 @@ object Space {
         val admin = admin(context)
         dpm.setProfileName(admin, context.getString(R.string.space_name))
         dpm.setProfileEnabled(admin)
-        restrictInstalls(context)
+        restoreInstallRestriction(context)
 
         dpm.clearCrossProfileIntentFilters(admin)
         dpm.addCrossProfileIntentFilter(

@@ -52,7 +52,9 @@ class ManageActivity : Activity() {
         list.adapter = AppAdapter()
         list.setOnItemClickListener { _, _, position, _ -> showCloneActions(apps[position]) }
         findViewById<View>(R.id.privacyButton).setOnClickListener { showPrivacyDialog() }
-        findViewById<Button>(R.id.wipeButton).setOnClickListener { confirmWipe() }
+        val wipeButton = findViewById<Button>(R.id.wipeButton)
+        wipeButton.filterTouchesWhenObscured = true
+        wipeButton.setOnClickListener { confirmWipe() }
 
         thread { Space.setUp(applicationContext) }
     }
@@ -86,23 +88,30 @@ class ManageActivity : Activity() {
         val dpm = Space.dpm(this)
         val admin = Space.admin(this)
         return pm.getInstalledApplications(PackageManager.MATCH_UNINSTALLED_PACKAGES)
-            .filter { info ->
-                val isSystem = info.flags and ApplicationInfo.FLAG_SYSTEM != 0
-                val isInstalled = info.flags and ApplicationInfo.FLAG_INSTALLED != 0
-                info.packageName != packageName && (
-                    (!isSystem && isInstalled) ||
-                        dpm.isApplicationHidden(admin, info.packageName) ||
-                        pm.getLaunchIntentForPackage(info.packageName) != null
-                    )
-            }
-            .map { info ->
-                App(
-                    label = pm.getApplicationLabel(info).toString(),
-                    packageName = info.packageName,
-                    icon = pm.getApplicationIcon(info),
-                    paused = dpm.isApplicationHidden(admin, info.packageName),
-                    isSystem = info.flags and ApplicationInfo.FLAG_SYSTEM != 0,
-                )
+            .mapNotNull { info ->
+                try {
+                    val isSystem = info.flags and ApplicationInfo.FLAG_SYSTEM != 0
+                    val isInstalled = info.flags and ApplicationInfo.FLAG_INSTALLED != 0
+                    val paused = dpm.isApplicationHidden(admin, info.packageName)
+                    val listed = info.packageName != packageName && (
+                        (!isSystem && isInstalled) ||
+                            paused ||
+                            pm.getLaunchIntentForPackage(info.packageName) != null
+                        )
+                    if (!listed) {
+                        null
+                    } else {
+                        App(
+                            label = safeLabel(info.packageName) { pm.getApplicationLabel(info) },
+                            packageName = info.packageName,
+                            icon = AppIcons.load(this) { pm.getApplicationIcon(info) },
+                            paused = paused,
+                            isSystem = isSystem,
+                        )
+                    }
+                } catch (t: Throwable) {
+                    null
+                }
             }
             .sortedBy { it.label.lowercase() }
     }
@@ -153,12 +162,13 @@ class ManageActivity : Activity() {
     }
 
     private fun confirmWipe() {
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.wipe_title)
             .setMessage(R.string.wipe_message)
             .setPositiveButton(R.string.wipe_action) { _, _ -> Space.dpm(this).wipeData(0) }
             .setNegativeButton(R.string.cancel, null)
             .show()
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).filterTouchesWhenObscured = true
     }
 
     private inner class AppAdapter : BaseAdapter() {
